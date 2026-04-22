@@ -70,7 +70,8 @@ app.get("/api/ai-dashboard/config", (_req, res) => {
 
 app.get("/ai-dashboard", (_req, res) => {
   aiDashboardViews.inc();
-  res.sendFile(path.join(publicDir, "ai-dashboard.html"));
+  // Use { root } so the path is resolved under a fixed directory (Semgrep-friendly).
+  res.sendFile("ai-dashboard.html", { root: publicDir });
 });
 
 app.get("/metrics", async (_req, res) => {

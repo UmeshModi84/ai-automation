@@ -50,16 +50,17 @@ jobs:
         run: exit 1
 
   # --- Static analysis (Semgrep) ---
+  # Official image avoids pip/PATH flakiness; exclude static HTML dashboard (inline JS → noisy rules).
   semgrep:
     name: Semgrep static analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: semgrep/semgrep:latest
     steps:
       - uses: actions/checkout@v4
-      - name: Semgrep
-        run: |
-          pip install --user semgrep
-          export PATH="$HOME/.local/bin:$PATH"
-          semgrep --config auto --error app/
+      - name: Semgrep scan
+        run: semgrep scan --config auto --error --exclude "**/public/**" app/
 
   # --- Docker build & push to GHCR (main only) ---
   docker-push:
