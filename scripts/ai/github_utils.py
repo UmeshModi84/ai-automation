@@ -8,6 +8,22 @@ from typing import Any
 import requests
 
 
+def skip_ai_without_api_key(task_label: str) -> bool:
+    """
+    If OPENAI_API_KEY is unset, log a GitHub Actions annotation and summary; return True so the
+    caller can exit 0 and avoid failing the workflow (optional AI until the secret is added).
+    """
+    if os.environ.get("OPENAI_API_KEY", "").strip():
+        return False
+    msg = (
+        f"{task_label} skipped: OPENAI_API_KEY is not set. "
+        "Add repository secret OPENAI_API_KEY (Settings → Secrets and variables → Actions)."
+    )
+    print(f"::warning::{msg}", flush=True)
+    append_step_summary(f"### {task_label} (skipped)\n\n{msg}\n")
+    return True
+
+
 def post_issue_comment(body: str) -> dict[str, Any]:
     """Post a comment on the PR (issue) for the current workflow run."""
     token = os.environ.get("GITHUB_TOKEN")

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from github_utils import append_step_summary, post_issue_comment
+from github_utils import append_step_summary, post_issue_comment, skip_ai_without_api_key
 
 
 def read_sources(root: Path) -> str:
@@ -38,9 +38,15 @@ def main() -> int:
     p.add_argument("--no-post", action="store_true")
     args = p.parse_args()
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY is required", file=sys.stderr)
-        return 1
+    if skip_ai_without_api_key("AI test suggestions"):
+        stub = (
+            "## AI-generated test ideas\n\n"
+            "*(Skipped — set repository secret `OPENAI_API_KEY` to enable OpenAI suggestions.)*\n"
+        )
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(stub, encoding="utf-8")
+        print(f"Wrote stub {args.out}")
+        return 0
 
     src = read_sources(args.app_root)
     if not src.strip():

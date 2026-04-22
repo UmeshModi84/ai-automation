@@ -11,7 +11,7 @@ import sys
 
 from openai import OpenAI
 
-from github_utils import append_step_summary, post_issue_comment
+from github_utils import append_step_summary, post_issue_comment, skip_ai_without_api_key
 
 
 def main() -> int:
@@ -20,9 +20,8 @@ def main() -> int:
     p.add_argument("--no-post", action="store_true", help="Print only; do not post to GitHub")
     args = p.parse_args()
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY is required", file=sys.stderr)
-        return 1
+    if skip_ai_without_api_key("AI code review"):
+        return 0
 
     try:
         with open(args.diff_file, encoding="utf-8", errors="replace") as f:

@@ -13,7 +13,7 @@ import urllib.request
 
 from openai import OpenAI
 
-from github_utils import append_step_summary
+from github_utils import append_step_summary, skip_ai_without_api_key
 
 
 def fetch_prometheus_alerts(base_url: str) -> str:
@@ -32,9 +32,8 @@ def main() -> int:
     p.add_argument("--prometheus", help="Base URL e.g. http://host:9090 to include alerts")
     args = p.parse_args()
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY is required", file=sys.stderr)
-        return 1
+    if skip_ai_without_api_key("AI log / metrics analysis"):
+        return 0
 
     chunks: list[str] = []
     if args.log_file:
