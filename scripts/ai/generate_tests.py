@@ -62,10 +62,13 @@ def main() -> int:
     client = OpenAI()
     prompt = (
         "Given the following Node.js (CommonJS) application source, propose NEW Jest + supertest "
-        "test cases that improve coverage and catch edge cases. Output markdown with:\n"
-        "1) Bullet list of test scenarios\n"
-        "2) One fenced javascript code block with a sample `describe`/`test` you would add "
-        "(do not repeat existing trivial tests).\n"
+        "test cases. Include:\n"
+        "- Happy paths and **edge cases** (boundary inputs, empty body, unknown routes, malformed JSON).\n"
+        "- **Negative tests** (expect 4xx/5xx where appropriate, timeout behavior, wrong `Content-Type`).\n"
+        "- Security-ish checks where relevant (oversized payloads, header injection strings — no real exploits).\n"
+        "Output markdown with:\n"
+        "1) Bullet list of scenarios grouped: Edge cases | Negative tests | Other\n"
+        "2) One fenced javascript code block with `describe`/`test` examples (use supertest).\n"
         f"\n{src}"
     )
     resp = chat_completion(

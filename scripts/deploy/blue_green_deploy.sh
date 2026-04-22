@@ -9,6 +9,28 @@ set -euo pipefail
 sudo mkdir -p /opt/app 2>/dev/null || mkdir -p /opt/app
 
 IMAGE="${1:?Usage: blue_green_deploy.sh <full-image-ref>}"
+
+# Optional: gate deploy with scripts/ai/deploy_decision_ai.py (JSON from CI or ops).
+# export DEPLOY_DECISION_INPUT_JSON=/opt/app/deploy_inputs.json
+# Set AI_PIPELINE_ROOT on the server if this script is not inside a full repo checkout.
+REPO_ROOT="${AI_PIPELINE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+if [[ -n "${DEPLOY_DECISION_INPUT_JSON:-}" && -f "${DEPLOY_DECISION_INPUT_JSON}" ]] && command -v python3 >/dev/null 2>&1; then
+  set +e
+  python3 "$REPO_ROOT/scripts/ai/deploy_decision_ai.py" \
+    --input-json "$DEPLOY_DECISION_INPUT_JSON" \
+    --output-json /opt/app/last_deploy_decision.json \
+    --stdout-json
+  dec_ec=$?
+  set -e
+  if [[ "$dec_ec" -eq 3 ]]; then
+    echo "deploy_decision_ai: rollback — aborting deploy"
+    exit 3
+  fi
+  if [[ "$dec_ec" -eq 2 ]]; then
+    echo "deploy_decision_ai: delay — aborting deploy"
+    exit 2
+  fi
+fi
 PRIMARY_PORT="${PRIMARY_PORT:-3000}"
 GREEN_PORT="${GREEN_PORT:-3002}"
 NAME_BLUE="${NAME_BLUE:-app-blue}"

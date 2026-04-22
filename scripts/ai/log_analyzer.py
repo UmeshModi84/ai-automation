@@ -10,11 +10,15 @@ import json
 import os
 import sys
 import urllib.request
+from pathlib import Path
 
 from openai import OpenAI
 
 from openai_chat import chat_completion
 from github_utils import append_step_summary, resolve_openai_model, skip_ai_without_api_key
+from structured_logging import get_logger, log_json
+
+logger = get_logger("ai.log_analyzer")
 
 
 def fetch_prometheus_alerts(base_url: str) -> str:
@@ -27,13 +31,37 @@ def fetch_prometheus_alerts(base_url: str) -> str:
         return f"[could not fetch alerts: {e}]"
 
 
+def heuristic_root_cause(log_snippet: str) -> dict:
+    """Cheap keyword-based hints when AI is unavailable."""
+    hints: list[str] = []
+    low = log_snippet.lower()
+    if "eslint" in low or "lint" in low:
+        hints.append("lint_failure")
+    if "jest" in low or ("failing" in low and "test" in low):
+        hints.append("test_failure")
+    if "enoent" in low or "module not found" in low:
+        hints.append("missing_module")
+    if "audit" in low and "critical" in low:
+        hints.append("npm_audit_critical")
+    return {"root_cause_hints": hints or ["unknown"], "confidence": "low"}
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("log_file", nargs="?", help="Plain-text log file")
     p.add_argument("--prometheus", help="Base URL e.g. http://host:9090 to include alerts")
+    p.add_argument(
+        "--analysis-json-out",
+        type=Path,
+        default=Path("ci-artifacts/log_analysis.json"),
+        help="Structured output (root_cause, signals, narrative)",
+    )
     args = p.parse_args()
 
     if skip_ai_without_api_key("AI log / metrics analysis"):
+        stub = {"status": "skipped_openai_key", "signals": {}}
+        args.analysis_json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.analysis_json_out.write_text(json.dumps(stub, indent=2), encoding="utf-8")
         return 0
 
     chunks: list[str] = []
@@ -76,12 +104,25 @@ def main() -> int:
         temperature=0.2,
         max_tokens=2048,
     )
+    analysis: dict = {"signals": {"has_log": bool(args.log_file), "prometheus": bool(args.prometheus)}}
+    analysis["heuristic"] = heuristic_root_cause(blob[:20_000])
+
     if resp is None:
+        analysis["narrative"] = None
+        analysis["status"] = "skipped_openai"
+        args.analysis_json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.analysis_json_out.write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+        log_json(logger, "log_analysis_written", path=str(args.analysis_json_out))
         return 0
     text = (resp.choices[0].message.content or "").strip()
+    analysis["narrative"] = text
+    analysis["status"] = "ok"
     out = "## AI log / metrics analysis\n\n" + text
     append_step_summary(out)
     print(out)
+    args.analysis_json_out.parent.mkdir(parents=True, exist_ok=True)
+    args.analysis_json_out.write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+    log_json(logger, "log_analysis_written", path=str(args.analysis_json_out))
     return 0
 
 

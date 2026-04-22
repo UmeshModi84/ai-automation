@@ -25,12 +25,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 25
 
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: app/package.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps (AI prelude in run_node_ci.sh)
+        run: pip install -r scripts/ai/requirements.txt
 
       - name: Run CI script (captures full log)
         id: run_ci
@@ -48,6 +57,14 @@ jobs:
       - name: Fail if CI failed
         if: steps.run_ci.outcome == 'failure'
         run: exit 1
+
+      - name: Upload AI / CI artifact bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-ai-artifacts
+          path: ci-artifacts/
+          if-no-files-found: ignore
 
   # --- Static analysis (Semgrep) ---
   # Official image avoids pip/PATH flakiness; exclude static HTML dashboard (inline JS → noisy rules).

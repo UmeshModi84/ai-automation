@@ -1,0 +1,15 @@
+# Example rules — tune thresholds for your traffic profile.
+groups:
+  - name: ai_app_anomalies
+    rules:
+      - alert: HighHTTPP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="app"}[5m])) by (le)
+          ) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p99 HTTP latency on app"
+          description: "Review recent deploys; consider rollback if correlated with release."

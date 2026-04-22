@@ -10,7 +10,7 @@ This repository contains a **Node.js** sample app, **GitHub Actions** workflows,
 | `.github/workflows/ci-cd.yml` | Main CI/CD: lint, test, build, audit, Semgrep, Docker push, AI jobs, deploy |
 | `.github/workflows/optional-auto-fix.yml` | Manual ESLint auto-fix PR |
 | `.github/workflows/ai-log-monitoring.yml` | Scheduled / manual AI log & metrics review |
-| `scripts/ai/` | Python tools (`openai`, `requests`) |
+| `scripts/ai/` | Python tools (`openai`, `requests`) plus **autonomous** helpers: `bug_predictor.py`, `pr_summarizer.py`, `anomaly_detector.py`, `security_scanner.py`, `deploy_decision_ai.py`, `structured_logging.py` |
 | `scripts/ci/run_node_ci.sh` | CI runner with `ci-full.log` for AI debugging |
 | `scripts/deploy/` | `notify.sh`, `blue_green_deploy.sh`, `rollback.sh` (for VM use) |
 | `terraform/` | VPC + public subnet + EC2 (Amazon Linux 2023 + Docker) |
@@ -175,6 +175,23 @@ Prometheus metric **`ai_dashboard_views_total`** increments on each load of `/ai
 | Failed CI analysis | `ai-failure-insights` → `suggest_fixes.py` + Step Summary |
 | Log / anomaly analysis | `log_analyzer.py` + `ai-log-monitoring.yml` |
 | ESLint auto-fix PR | `optional-auto-fix.yml` + `auto_fix.py` |
+| **Bug risk (pre-CI)** | `run_node_ci.sh` → `scripts/ai/bug_predictor.py` → `ci-artifacts/bug_predict.json` |
+| **PR summary JSON** | `run_node_ci.sh` → `scripts/ai/pr_summarizer.py` → `ci-artifacts/pr_summary.json` |
+| **Security heuristics** | `run_node_ci.sh` → `scripts/ai/security_scanner.py` → `ci-artifacts/security_scan.json` |
+| **Metric anomalies** | `scripts/ai/anomaly_detector.py` (Prometheus or stdin JSON series) |
+| **Deploy gate** | `scripts/ai/deploy_decision_ai.py` — optional hook in `blue_green_deploy.sh` |
+
+`scripts/ci/run_node_ci.sh` runs the **AI prelude** first (unless `SKIP_AI_PRELUDE=1`), then npm lint/test/build/audit. GitHub Actions uploads **`ci-artifacts/`** as workflow artifact **`ci-ai-artifacts`**.
+
+**Self-heal (optional):** `python scripts/ai/auto_fix.py --self-heal --ci-script scripts/ci/run_node_ci.sh` with env **`CI_SELF_HEAL=1`** reruns the CI script once after ESLint `--fix` (avoid recursion: second run sets `SKIP_AI_PRELUDE=1` automatically).
+
+**Deploy decision on server:** set **`DEPLOY_DECISION_INPUT_JSON=/path/to/deploy_inputs.json`** before `blue_green_deploy.sh`. JSON example:
+
+```json
+{"tests_passed": true, "risk_tier": "low", "metrics_ok": true, "anomaly_tier": "ok"}
+```
+
+Exit codes from `deploy_decision_ai.py`: **0** deploy, **2** delay, **3** rollback. Install `pip install -r scripts/ai/requirements.txt` on the host if you use OpenAI in that step. Override repo root with **`AI_PIPELINE_ROOT`** if scripts are not under a full clone.
 
 ## Step 9 — Optional Snyk
 

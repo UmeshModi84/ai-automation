@@ -11,5 +11,6 @@ __pycache__/
 *.pyc
 .venv/
 ci-full.log
+ci-artifacts/
 diff.txt
 ai-generated-tests.md
