@@ -94,18 +94,30 @@ jobs:
             ghcr.io/${{ steps.img.outputs.IMAGE }}:latest
             ghcr.io/${{ steps.img.outputs.IMAGE }}:${{ github.sha }}
 
-  # --- AI: PR code review ---
+  # --- AI: code review (PRs + pushes to main so it is not skipped on merge/push) ---
   ai-code-review:
     name: AI code review (OpenAI)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Create diff
-        run: git diff origin/${{ github.base_ref }}...HEAD > diff.txt
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            git diff "origin/${{ github.base_ref }}...HEAD" > diff.txt
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.event.after }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              git show --no-patch --format=fuller "$AFTER" > diff.txt || echo "(new branch)" > diff.txt
+            else
+              git diff "$BEFORE" "$AFTER" > diff.txt
+            fi
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -120,14 +132,14 @@ jobs:
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         run: python scripts/ai/code_review.py diff.txt
 
-  # --- AI: suggested test cases on PRs ---
+  # --- AI: test suggestions (PRs + main push; PR comment only when PR_NUMBER is set) ---
   ai-generate-tests:
     name: AI test suggestions
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
 
@@ -144,7 +156,7 @@ jobs:
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         run: python scripts/ai/generate_tests.py --app-root app --out ai-generated-tests.md
 
       - uses: actions/upload-artifact@v4

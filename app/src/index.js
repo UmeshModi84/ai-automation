@@ -5,6 +5,8 @@ const path = require("path");
 const express = require("express");
 const client = require("prom-client");
 
+// Stateless JSON API (no cookie session auth) — CSRF via browser cookies does not apply.
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage
 const app = express();
 const PORT = process.env.PORT || 3000;
 
