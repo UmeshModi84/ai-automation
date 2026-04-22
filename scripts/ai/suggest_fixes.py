@@ -10,7 +10,12 @@ import sys
 
 from openai import OpenAI
 
-from github_utils import append_step_summary, post_issue_comment, skip_ai_without_api_key
+from github_utils import (
+    append_step_summary,
+    post_issue_comment,
+    resolve_openai_model,
+    skip_ai_without_api_key,
+)
 
 
 def main() -> int:
@@ -39,7 +44,7 @@ def main() -> int:
         + "\n```"
     )
     resp = client.chat.completions.create(
-        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        model=resolve_openai_model(),
         messages=[
             {"role": "system", "content": "You are a DevOps engineer helping debug CI failures."},
             {"role": "user", "content": user},

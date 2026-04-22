@@ -8,6 +8,12 @@ from typing import Any
 import requests
 
 
+def resolve_openai_model(default: str = "gpt-4o-mini") -> str:
+    """OPENAI_MODEL from env/vars; empty string must fall back (GitHub `vars` can be set but blank)."""
+    raw = (os.environ.get("OPENAI_MODEL") or "").strip()
+    return raw if raw else default
+
+
 def skip_ai_without_api_key(task_label: str) -> bool:
     """
     If OPENAI_API_KEY is unset, log a GitHub Actions annotation and summary; return True so the

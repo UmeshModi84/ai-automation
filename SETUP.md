@@ -68,7 +68,7 @@ Or, if you intend to **replace** the remote history with this project only (dest
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `OPENAI_MODEL` | `gpt-4o-mini` | Override default model |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Override default model — **leave unset** if unused; an **empty** variable breaks the API (“you must provide a model parameter”). |
 | `DEPLOY_ENABLED` | `true` | Set to `true` to run the **deploy** job (after adding `DEPLOY_*` secrets). If unset, pushes to `main` still build/push the image but skip SSH deploy. |
 
 ### Environments

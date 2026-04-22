@@ -13,7 +13,7 @@ import urllib.request
 
 from openai import OpenAI
 
-from github_utils import append_step_summary, skip_ai_without_api_key
+from github_utils import append_step_summary, resolve_openai_model, skip_ai_without_api_key
 
 
 def fetch_prometheus_alerts(base_url: str) -> str:
@@ -58,7 +58,7 @@ def main() -> int:
     blob = "\n\n".join(chunks)
     client = OpenAI()
     resp = client.chat.completions.create(
-        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        model=resolve_openai_model(),
         messages=[
             {
                 "role": "system",
