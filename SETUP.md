@@ -21,21 +21,34 @@ This repository contains a **Node.js** sample app, **GitHub Actions** workflows,
 
 ## Prerequisites
 
-- **GitHub** account and a new repository (push this folder).
+- **GitHub** account and repository — this project is designed to live in **[UmeshModi84/ai-automation](https://github.com/UmeshModi84/ai-automation)** (clone URL: `https://github.com/UmeshModi84/ai-automation.git`).
 - **OpenAI API key** for AI features ([platform.openai.com](https://platform.openai.com/)).
 - **AWS account** (for Terraform), or skip infra and run the app locally / elsewhere.
 - Optional: **Slack** or **Microsoft Teams** incoming webhook for notifications.
 
 ## Step 1 — Push the code
 
+Your GitHub remote: **[https://github.com/UmeshModi84/ai-automation.git](https://github.com/UmeshModi84/ai-automation.git)**
+
 ```bash
 cd ai-cicd-pipeline
 git init
+git branch -M main
 git add .
-git commit -m "Initial AI CI/CD pipeline"
-git remote add origin https://github.com/<ORG>/<REPO>.git
+git commit -m "Initial AI CI/CD pipeline"   # skip if you already have commits
+git remote add origin https://github.com/UmeshModi84/ai-automation.git
 git push -u origin main
 ```
+
+If the remote already has commits (for example only a `readme.md` from GitHub’s “create repo” flow) and `git push` is rejected, either merge histories:
+
+```bash
+git pull origin main --allow-unrelated-histories
+# resolve any conflicts, then:
+git push -u origin main
+```
+
+Or, if you intend to **replace** the remote history with this project only (destructive), use `git push --force-with-lease origin main` after confirming no one else depends on that branch.
 
 ## Step 2 — GitHub configuration
 
