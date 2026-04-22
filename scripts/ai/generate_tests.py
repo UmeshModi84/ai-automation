@@ -12,6 +12,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from openai_chat import chat_completion
 from github_utils import (
     append_step_summary,
     post_issue_comment,
@@ -67,7 +68,9 @@ def main() -> int:
         "(do not repeat existing trivial tests).\n"
         f"\n{src}"
     )
-    resp = client.chat.completions.create(
+    resp = chat_completion(
+        client,
+        task_label="AI test suggestions",
         model=resolve_openai_model(),
         messages=[
             {"role": "system", "content": "You write excellent tests; be practical and minimal."},
@@ -76,6 +79,16 @@ def main() -> int:
         temperature=0.3,
         max_tokens=4096,
     )
+    if resp is None:
+        stub = (
+            "## AI-generated test ideas\n\n"
+            "*(Skipped — OpenAI account hit **quota / billing** limit. "
+            "Add credits: https://platform.openai.com/account/billing )*\n"
+        )
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(stub, encoding="utf-8")
+        print(f"Wrote stub {args.out} (quota)")
+        return 0
     text = (resp.choices[0].message.content or "").strip()
     out_body = "## AI-generated test ideas\n\n" + text
     args.out.parent.mkdir(parents=True, exist_ok=True)

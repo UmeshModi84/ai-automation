@@ -187,6 +187,7 @@ For **blue/green** on a single host, use `scripts/deploy/blue_green_deploy.sh` a
 ## Troubleshooting
 
 - **AI jobs skip or fail**: set `OPENAI_API_KEY`; check billing/limits on the OpenAI account.
+- **429 / `insufficient_quota`**: add a payment method and credits at [OpenAI billing](https://platform.openai.com/account/billing). The pipeline can treat this as a **skipped AI step** (warning) so the rest of CI still passes once you pull the latest scripts.
 - **GHCR push denied**: set workflow permissions to read/write packages; use lowercase image names (workflow lowercases `GITHUB_REPOSITORY`).
 - **Deploy SSH fails**: verify security group, key pair, user name (`ec2-user` on AL2023), and that Docker is running on the instance.
 - **Semgrep**: requires network on the runner to fetch rules; `semgrep --config auto` may take a few minutes on first run.

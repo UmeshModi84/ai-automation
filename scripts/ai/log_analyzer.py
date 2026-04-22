@@ -13,6 +13,7 @@ import urllib.request
 
 from openai import OpenAI
 
+from openai_chat import chat_completion
 from github_utils import append_step_summary, resolve_openai_model, skip_ai_without_api_key
 
 
@@ -57,7 +58,9 @@ def main() -> int:
 
     blob = "\n\n".join(chunks)
     client = OpenAI()
-    resp = client.chat.completions.create(
+    resp = chat_completion(
+        client,
+        task_label="AI log / metrics analysis",
         model=resolve_openai_model(),
         messages=[
             {
@@ -73,6 +76,8 @@ def main() -> int:
         temperature=0.2,
         max_tokens=2048,
     )
+    if resp is None:
+        return 0
     text = (resp.choices[0].message.content or "").strip()
     out = "## AI log / metrics analysis\n\n" + text
     append_step_summary(out)

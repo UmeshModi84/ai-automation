@@ -10,6 +10,7 @@ import sys
 
 from openai import OpenAI
 
+from openai_chat import chat_completion
 from github_utils import (
     append_step_summary,
     post_issue_comment,
@@ -43,7 +44,9 @@ def main() -> int:
         + log[:80_000]
         + "\n```"
     )
-    resp = client.chat.completions.create(
+    resp = chat_completion(
+        client,
+        task_label="AI failure analysis",
         model=resolve_openai_model(),
         messages=[
             {"role": "system", "content": "You are a DevOps engineer helping debug CI failures."},
@@ -52,6 +55,8 @@ def main() -> int:
         temperature=0.2,
         max_tokens=4096,
     )
+    if resp is None:
+        return 0
     text = (resp.choices[0].message.content or "").strip()
     body = f"## {args.title}\n\n{text}"
     append_step_summary(body)
