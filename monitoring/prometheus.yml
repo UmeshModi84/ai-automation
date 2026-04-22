@@ -1,0 +1,19 @@
+# Scrape targets — replace EC2_PRIVATE_IP with your instance IP or use DNS
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "app"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app-blue:3000"]
+        labels:
+          slot: blue
+      - targets: ["app-green:3001"]
+        labels:
+          slot: green
+
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]

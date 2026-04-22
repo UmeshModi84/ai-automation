@@ -1,0 +1,38 @@
+# Optional: run ESLint auto-fix and open a PR (manual dispatch — requires branch protection review)
+name: Optional auto-fix PR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply auto-fix
+        run: |
+          pip install -r scripts/ai/requirements.txt
+          python scripts/ai/auto_fix.py
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: eslint auto-fix"
+          title: "chore: ESLint auto-fix"
+          body: "Automated fixes from `scripts/ai/auto_fix.py` — review before merge."
+          branch: chore/eslint-auto-fix

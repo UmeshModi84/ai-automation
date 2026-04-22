@@ -1,0 +1,6 @@
+**/node_modules
+**/coverage
+**/.git
+**/*.md
+.env
+**/.env.*

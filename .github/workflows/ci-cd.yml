@@ -1,0 +1,268 @@
+name: AI-powered CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  # --- Core CI: install, lint, test, build, audit ---
+  ci:
+    name: Lint, test, build, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: app/package.json
+
+      - name: Run CI script (captures full log)
+        id: run_ci
+        run: bash scripts/ci/run_node_ci.sh
+        continue-on-error: true
+
+      - name: Upload CI log on failure
+        if: steps.run_ci.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-full-log
+          path: ci-full.log
+          if-no-files-found: warn
+
+      - name: Fail if CI failed
+        if: steps.run_ci.outcome == 'failure'
+        run: exit 1
+
+  # --- Static analysis (Semgrep) ---
+  semgrep:
+    name: Semgrep static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep
+        run: |
+          pip install --user semgrep
+          export PATH="$HOME/.local/bin:$PATH"
+          semgrep --config auto --error app/
+
+  # --- Docker build & push to GHCR (main only) ---
+  docker-push:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    needs: [ci, semgrep]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase image name
+        id: img
+        run: echo "IMAGE=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.img.outputs.IMAGE }}:latest
+            ghcr.io/${{ steps.img.outputs.IMAGE }}:${{ github.sha }}
+
+  # --- AI: PR code review ---
+  ai-code-review:
+    name: AI code review (OpenAI)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create diff
+        run: git diff origin/${{ github.base_ref }}...HEAD > diff.txt
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AI deps
+        run: pip install -r scripts/ai/requirements.txt
+
+      - name: Run review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python scripts/ai/code_review.py diff.txt
+
+  # --- AI: suggested test cases on PRs ---
+  ai-generate-tests:
+    name: AI test suggestions
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AI deps
+        run: pip install -r scripts/ai/requirements.txt
+
+      - name: Generate test ideas
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python scripts/ai/generate_tests.py --app-root app --out ai-generated-tests.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-generated-tests
+          path: ai-generated-tests.md
+
+  # --- AI: explain failures + log insight ---
+  ai-failure-insights:
+    name: AI failure analysis
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: always() && needs.ci.result == 'failure'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ci-full-log
+          path: .
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AI deps
+        run: pip install -r scripts/ai/requirements.txt
+
+      - name: Analyze logs (and post PR comment on PRs)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
+        run: |
+          LOG=ci-full.log
+          if [[ ! -f "$LOG" ]]; then
+            echo "No artifact log; writing stub."
+            echo "CI failed but log artifact missing — check Actions UI for step logs." > "$LOG"
+          fi
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            python scripts/ai/suggest_fixes.py "$LOG" --title "AI analysis of failed CI" --post-pr
+          else
+            python scripts/ai/suggest_fixes.py "$LOG" --title "AI analysis of failed CI"
+          fi
+
+  # --- Deploy to EC2 over SSH (main only) — inline script (repo not on server) ---
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [docker-push]
+    # Set repository variable DEPLOY_ENABLED=true when DEPLOY_* secrets are configured
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase image name
+        id: img
+        run: echo "IMAGE=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # Inline deploy: image is pulled on the host; previous image saved for rollback
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            sudo mkdir -p /opt/app
+            IMAGE="ghcr.io/${{ steps.img.outputs.IMAGE }}:${{ github.sha }}"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull "$IMAGE"
+            PREV="$(docker inspect --format '{{.Config.Image}}' app 2>/dev/null || true)"
+            if [[ -n "$PREV" ]]; then echo "$PREV" | sudo tee /opt/app/previous_image.txt >/dev/null; fi
+            docker rm -f app 2>/dev/null || true
+            docker run -d --name app --restart unless-stopped -p 3000:3000 \
+              -e NODE_ENV=production \
+              -e APP_VERSION="${{ github.sha }}" \
+              "$IMAGE"
+
+      - name: Rollback on deploy failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            if [[ ! -f /opt/app/previous_image.txt ]]; then exit 0; fi
+            PREV="$(cat /opt/app/previous_image.txt)"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull "$PREV" || true
+            docker rm -f app 2>/dev/null || true
+            docker run -d --name app --restart unless-stopped -p 3000:3000 -e NODE_ENV=production "$PREV"
+        continue-on-error: true
+
+  # --- Notifications (only needs jobs that always run or use if: always carefully) ---
+  notify:
+    name: Notify Slack/Teams
+    runs-on: ubuntu-latest
+    needs: [ci, semgrep]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          if [[ "${{ needs.ci.result }}" != "success" ]]; then
+            bash scripts/deploy/notify.sh "failure" "Workflow ${{ github.run_id }} — CI failed"
+            exit 0
+          fi
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" && "${{ needs.semgrep.result }}" == "success" ]]; then
+            bash scripts/deploy/notify.sh "success" "CI + Semgrep passed for ${{ github.sha }} (deploy runs in separate job if configured)"
+          fi

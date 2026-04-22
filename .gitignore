@@ -1,0 +1,15 @@
+node_modules/
+coverage/
+dist/
+.env
+*.log
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+__pycache__/
+*.pyc
+.venv/
+ci-full.log
+diff.txt
+ai-generated-tests.md

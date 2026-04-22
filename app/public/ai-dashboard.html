@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Pipeline Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --panel: #141a24;
+      --border: #243044;
+      --text: #e8edf5;
+      --muted: #8b9bb4;
+      --accent: #f4b942;
+      --accent-dim: #c9922a;
+      --ok: #3ecf8e;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Source Sans 3", system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #1a2233 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #122018 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+    header {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.75rem;
+    }
+    h1 {
+      font-family: "DM Serif Display", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(1.75rem, 4vw, 2.35rem);
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+    h1 span { color: var(--accent); }
+    .sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 52ch;
+      line-height: 1.55;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 12px var(--ok);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: linear-gradient(155deg, rgba(255,255,255,0.04), transparent 40%), var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-height: 132px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .card:hover {
+      border-color: rgba(244, 185, 66, 0.35);
+      transform: translateY(-2px);
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      flex: 1;
+    }
+    .card a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .card a:hover { text-decoration: underline; color: var(--accent-dim); }
+    .card.disabled a { pointer-events: none; opacity: 0.45; }
+    section h3 {
+      font-family: "DM Serif Display", Georgia, serif;
+      font-size: 1.15rem;
+      margin: 0 0 1rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .links a {
+      display: inline-flex;
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.92rem;
+      background: rgba(255,255,255,0.02);
+    }
+    .links a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .hint {
+      margin-top: 2rem;
+      padding: 1rem 1.15rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(244, 185, 66, 0.06);
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+      border-radius: 0 10px 10px 0;
+    }
+    footer {
+      margin-top: 2.5rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>AI <span>Pipeline</span> dashboard</h1>
+      <p class="sub">
+        Operational view for OpenAI-assisted CI/CD: reviews, generated tests, failure analysis,
+        log checks, and optional auto-fix — wired through GitHub Actions.
+      </p>
+      <div class="meta">
+        <span class="pill"><span class="dot" aria-hidden="true"></span> App <strong id="version">—</strong></span>
+        <span class="pill" id="service-name">ai-cicd-sample-app</span>
+      </div>
+    </header>
+
+    <section aria-labelledby="automation-title">
+      <h3 id="automation-title">Automation</h3>
+      <div class="grid" id="cards">
+        <article class="card">
+          <h2>AI code review</h2>
+          <p>Diff-aware review on each pull request; posts a summary comment.</p>
+          <a data-link="actions" href="#">Open Actions</a>
+        </article>
+        <article class="card">
+          <h2>AI test ideas</h2>
+          <p>Suggested Jest scenarios and sample tests as a workflow artifact.</p>
+          <a data-link="actions" href="#">Open Actions</a>
+        </article>
+        <article class="card">
+          <h2>Failure insights</h2>
+          <p>On failed CI, explains logs and suggests fixes (Step Summary + PR comment).</p>
+          <a data-link="actions" href="#">Open Actions</a>
+        </article>
+        <article class="card">
+          <h2>Log anomaly check</h2>
+          <p>Scheduled or manual analysis; optional Prometheus alert context.</p>
+          <a data-link="actions" href="#">Open Actions</a>
+        </article>
+        <article class="card">
+          <h2>Optional auto-fix</h2>
+          <p>Workflow dispatch runs ESLint fix and opens a PR.</p>
+          <a data-link="actions" href="#">Open Actions</a>
+        </article>
+        <article class="card">
+          <h2>Workflow file</h2>
+          <p>Main pipeline definition for PR and main branch.</p>
+          <a data-link="workflow" href="#">View workflow in repo</a>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="links-title">
+      <h3 id="links-title">Monitoring &amp; repo</h3>
+      <div class="links" id="quick-links">
+        <a data-external="grafana" href="#" style="display:none">Grafana</a>
+        <a data-external="prometheus" href="#" style="display:none">Prometheus</a>
+        <a data-link="repo" href="#">GitHub repository</a>
+        <a data-link="actions" href="#">GitHub Actions</a>
+      </div>
+      <p class="hint" id="env-hint">
+        Set <code>GRAFANA_EXTERNAL_URL</code>, <code>PROMETHEUS_EXTERNAL_URL</code>, and
+        <code>GITHUB_REPO_URL</code> (or <code>GITHUB_ACTIONS_URL</code>) on the app container to enable quick links.
+      </p>
+    </section>
+
+    <footer>
+      Served by the sample app · Metrics at <code>/metrics</code> · JSON config at <code>/api/ai-dashboard/config</code>
+    </footer>
+  </div>
+  <script>
+    (function () {
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (sel) => document.querySelectorAll(sel);
+
+      fetch("/api/ai-dashboard/config")
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) {
+          $("#version").textContent = cfg.version || "dev";
+          if (cfg.service) $("#service-name").textContent = cfg.service;
+
+          var repo = cfg.repoUrl || "";
+          var actions = cfg.actionsUrl || (repo ? repo + "/actions" : "");
+          var wf = cfg.workflowFile || ".github/workflows/ci-cd.yml";
+
+          $$("[data-link=\"repo\"]").forEach(function (a) {
+            if (repo) { a.href = repo; } else { a.closest(".card") && a.closest(".card").classList.add("disabled"); }
+          });
+          $$("[data-link=\"actions\"]").forEach(function (a) {
+            if (actions) { a.href = actions; }
+            else if (repo) { a.href = repo + "/actions"; }
+            else { a.closest(".card") && a.closest(".card").classList.add("disabled"); }
+          });
+
+          $$("[data-link=\"workflow\"]").forEach(function (a) {
+            if (repo) { a.href = repo + "/blob/main/" + wf; }
+            else { a.closest(".card") && a.closest(".card").classList.add("disabled"); }
+          });
+
+          var g = cfg.grafanaUrl;
+          var p = cfg.prometheusUrl;
+          var ge = $("[data-external=\"grafana\"]");
+          var pe = $("[data-external=\"prometheus\"]");
+          if (g && ge) { ge.href = g; ge.style.display = "inline-flex"; }
+          if (p && pe) { pe.href = p; pe.style.display = "inline-flex"; }
+          if (g || p) $("#env-hint").style.display = "none";
+        })
+        .catch(function () {
+          $("#version").textContent = "unknown";
+        });
+    })();
+  </script>
+</body>
+</html>

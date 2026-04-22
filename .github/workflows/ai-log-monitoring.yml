@@ -1,0 +1,38 @@
+# Run AI log / metrics analysis on a schedule or manually (optionally point at Prometheus)
+name: AI log anomaly check
+
+on:
+  workflow_dispatch:
+    inputs:
+      prometheus_url:
+        description: "Prometheus base URL (optional), e.g. http://ec2-ip:9090"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 8 * * 1" # Weekly Monday 08:00 UTC
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install -r scripts/ai/requirements.txt
+
+      - name: Analyze
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+        run: |
+          echo "scheduled smoke: review app and Prometheus alerts in production" > stub.log
+          PROM="${{ github.event.inputs.prometheus_url }}"
+          if [[ -n "$PROM" ]]; then
+            python scripts/ai/log_analyzer.py stub.log --prometheus "$PROM"
+          else
+            python scripts/ai/log_analyzer.py stub.log
+          fi
